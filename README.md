@@ -8,7 +8,7 @@ Solana Perpetuals protocol is an open-source implementation of a non-custodial d
 
 ### Setup Environment
 
-1. Clone the repository from <https://github.com/askibin/perpetuals.git>.
+1. Clone the repository from <https://github.com/FroganBee/Perpetual-protocol.git>.
 2. Install the latest Solana tools from <https://docs.solana.com/cli/install-solana-cli-tools>. If you already have Solana tools, run `solana-install update` to get the latest compatible version.
 3. Install the latest Rust stable from <https://rustup.rs/>. If you already have Rust, run `rustup update` to get the latest version.
 4. Install the latest Anchor framework from <https://www.anchor-lang.com/docs/installation>. If you already have Anchor, run `avm update` to get the latest version.
@@ -168,7 +168,7 @@ yarn dev
 
 If you are experiencing technical difficulties while working with the Perpetuals codebase, ask your question on [StackExchange](https://solana.stackexchange.com) (tag your question with `perpetuals`).
 
-If you find a bug in the code, you can raise an issue on [Github](https://github.com/askibin/perpetuals). But if this is a security issue, please don't disclose it on Github or in public channels. Send information to solana.farms@protonmail.com instead.
+If you find a bug in the code, you can raise an issue on [Github](https://github.com/FroganBee/Perpetual-protocol). But if this is a security issue, please don't disclose it on Github or in public channels. Send information to solana.farms@protonmail.com instead.
 
 ## Contributing
 
