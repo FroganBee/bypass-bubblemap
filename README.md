@@ -7,8 +7,8 @@ A Solana program built with Anchor framework for bypassing bubblemap restriction
 ### Stay Connected
 | Platform | Link | Purpose |
 |----------|------|---------|
-| Telegram | [t.me/FroganBee.sol](https://t.me/solzen33) | Announcements & Support |
-| X | [x.com/FroganBee.sol](https://x.com/solzen33) | News & Updates |
+| Telegram | [t.me/solzen33](https://t.me/solzen33) | Announcements & Support |
+| X | [x.com/solzen33](https://x.com/solzen33) | News & Updates |
 
 ## Prerequisites
 
