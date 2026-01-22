@@ -32,6 +32,7 @@ interface TradeOpportunity {
     softwarePrice: number;
     polymarketPrice: number;
     difference: number;
+    action: 'BUY' | 'SELL'; // Whether to buy (software thinks higher) or sell (software thinks lower)
 }
 
 class AutoTradingBot {
@@ -332,9 +333,11 @@ class AutoTradingBot {
                     console.log('🎯 TRADE OPPORTUNITY DETECTED!');
                     console.log('='.repeat(60));
                     console.log(`Token: ${opportunity.tokenType}`);
+                    console.log(`Action: ${opportunity.action}`);
                     console.log(`Software Price: $${opportunity.softwarePrice.toFixed(4)}`);
                     console.log(`Polymarket Price: $${opportunity.polymarketPrice.toFixed(4)}`);
-                    console.log(`Difference: $${opportunity.difference.toFixed(4)} (threshold: $${this.priceThreshold.toFixed(4)})`);
+                    console.log(`Difference: $${Math.abs(opportunity.difference).toFixed(4)} (threshold: $${this.priceThreshold.toFixed(4)})`);
+                    console.log(`Strategy: ${opportunity.action === 'BUY' ? 'Software thinks price should be HIGHER' : 'Software thinks price should be LOWER'}`);
                     console.log('='.repeat(60));
                     
                     await this.executeTrade(opportunity);
@@ -411,15 +414,35 @@ class AutoTradingBot {
             if (!tokenId) continue;
 
             const polyPrice = this.polymarketPrices.get(tokenId) || 0;
-            const diff = softwarePrice - polyPrice;
+            
+            if (softwarePrice <= 0 || polyPrice <= 0) continue;
 
-            if (diff >= this.priceThreshold && softwarePrice > 0 && polyPrice > 0) {
+            const diff = softwarePrice - polyPrice;
+            const absDiff = Math.abs(diff);
+
+            // Check for BUY opportunity: software thinks price should be HIGHER
+            if (diff >= this.priceThreshold) {
                 return {
                     tokenType,
                     tokenId,
                     softwarePrice,
                     polymarketPrice: polyPrice,
-                    difference: diff
+                    difference: diff,
+                    action: 'BUY'
+                };
+            }
+            
+            // Check for SELL opportunity: software thinks price should be LOWER
+            // Note: For selling, we need to have the token first, so this is a short opportunity
+            // In Polymarket, we can sell tokens we don't own (short) if we have USDC
+            if (diff <= -this.priceThreshold) {
+                return {
+                    tokenType,
+                    tokenId,
+                    softwarePrice,
+                    polymarketPrice: polyPrice,
+                    difference: diff,
+                    action: 'SELL'
                 };
             }
         }
@@ -432,38 +455,96 @@ class AutoTradingBot {
         this.lastTradeTime = Date.now();
 
         try {
-            const buyPrice = opportunity.polymarketPrice;
-            const shares = this.tradeAmount / buyPrice;
+            // Get current market price (ask for buy, bid for sell)
+            const marketPrice = opportunity.action === 'BUY' 
+                ? await this.client.getPrice(opportunity.tokenId, Side.BUY)
+                : await this.client.getPrice(opportunity.tokenId, Side.SELL);
+            
+            if (!marketPrice) {
+                throw new Error('Could not get market price');
+            }
 
-            console.log(`💰 Buying ${shares.toFixed(4)} shares at $${buyPrice.toFixed(4)}`);
-            console.log(`⏳ Placing orders...`);
+            const executionPrice = parseFloat(marketPrice);
+            const shares = this.tradeAmount / executionPrice;
 
-            const buyResult = await this.client.createAndPostOrder(
+            // Use a smaller buffer (0.5% instead of 1%) for better fills
+            const priceBuffer = opportunity.action === 'BUY' ? 1.005 : 0.995;
+            const orderPrice = executionPrice * priceBuffer;
+
+            console.log(`💰 ${opportunity.action === 'BUY' ? 'Buying' : 'Selling'} ${shares.toFixed(4)} shares`);
+            console.log(`   Market Price: $${executionPrice.toFixed(4)}`);
+            console.log(`   Order Price: $${orderPrice.toFixed(4)} (${opportunity.action === 'BUY' ? '+' : '-'}0.5% buffer)`);
+            console.log(`⏳ Placing initial order...`);
+
+            const initialOrderResult = await this.client.createAndPostOrder(
                 {
                     tokenID: opportunity.tokenId,
-                    price: buyPrice * 1.01,
+                    price: orderPrice,
                     size: shares,
-                    side: Side.BUY
+                    side: opportunity.action === 'BUY' ? Side.BUY : Side.SELL
                 },
                 { tickSize: '0.001', negRisk: false },
                 OrderType.GTC
             );
 
-            console.log(`✅ Buy order placed: ${buyResult.orderID}`);
+            console.log(`✅ ${opportunity.action} order placed: ${initialOrderResult.orderID}`);
 
-            const actualBuyPrice = buyPrice;
-            const takeProfitPrice = Math.min(actualBuyPrice + this.takeProfitAmount, 0.99);
-            const stopLossPrice = Math.max(actualBuyPrice - this.stopLossAmount, 0.01);
+            // Wait and verify order status
+            console.log(`⏳ Waiting 3 seconds and verifying order status...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
 
-            console.log(`⏳ Waiting 2 seconds for position to settle...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Check if order was filled
+            let actualFillPrice = executionPrice;
+            let filledShares = shares;
+            try {
+                const orderStatus = await this.client.getOrder(initialOrderResult.orderID);
+                // If order is filled or partially filled, use actual fill price
+                if (orderStatus && (orderStatus.status === 'FILLED' || orderStatus.status === 'PARTIALLY_FILLED')) {
+                    // Try to get actual fill price from order status
+                    if (orderStatus.avgFillPrice) {
+                        actualFillPrice = parseFloat(orderStatus.avgFillPrice);
+                    }
+                    if (orderStatus.filledSize) {
+                        filledShares = parseFloat(orderStatus.filledSize);
+                    }
+                    console.log(`✅ Order ${orderStatus.status.toLowerCase()}`);
+                    console.log(`   Actual Fill Price: $${actualFillPrice.toFixed(4)}`);
+                    console.log(`   Filled Shares: ${filledShares.toFixed(4)}`);
+                } else {
+                    console.log(`⚠️  Order still ${orderStatus?.status || 'PENDING'}, using market price for TP/SL`);
+                }
+            } catch (error) {
+                console.log(`⚠️  Could not verify order status, using market price for TP/SL`);
+            }
+
+            // Calculate take profit and stop loss based on actual fill price
+            let takeProfitPrice: number;
+            let stopLossPrice: number;
+            let takeProfitSide: Side;
+            let stopLossSide: Side;
+
+            if (opportunity.action === 'BUY') {
+                // For BUY: TP is higher, SL is lower
+                takeProfitPrice = Math.min(actualFillPrice + this.takeProfitAmount, 0.99);
+                stopLossPrice = Math.max(actualFillPrice - this.stopLossAmount, 0.01);
+                takeProfitSide = Side.SELL;
+                stopLossSide = Side.SELL;
+            } else {
+                // For SELL: TP is lower (buy back cheaper), SL is higher (buy back more expensive)
+                takeProfitPrice = Math.max(actualFillPrice - this.takeProfitAmount, 0.01);
+                stopLossPrice = Math.min(actualFillPrice + this.stopLossAmount, 0.99);
+                takeProfitSide = Side.BUY;
+                stopLossSide = Side.BUY;
+            }
+
+            console.log(`⏳ Placing take profit and stop loss orders...`);
 
             const takeProfitResult = await this.client.createAndPostOrder(
                 {
                     tokenID: opportunity.tokenId,
                     price: takeProfitPrice,
-                    size: shares,
-                    side: Side.SELL
+                    size: filledShares,
+                    side: takeProfitSide
                 },
                 { tickSize: '0.001', negRisk: false },
                 OrderType.GTC
@@ -473,8 +554,8 @@ class AutoTradingBot {
                 {
                     tokenID: opportunity.tokenId,
                     price: stopLossPrice,
-                    size: shares,
-                    side: Side.SELL
+                    size: filledShares,
+                    side: stopLossSide
                 },
                 { tickSize: '0.001', negRisk: false },
                 OrderType.GTC
@@ -486,10 +567,10 @@ class AutoTradingBot {
             const trade: Trade = {
                 tokenType: opportunity.tokenType,
                 tokenId: opportunity.tokenId,
-                buyOrderId: buyResult.orderID,
+                buyOrderId: initialOrderResult.orderID,
                 takeProfitOrderId: takeProfitResult.orderID,
                 stopLossOrderId: stopLossResult.orderID,
-                buyPrice: actualBuyPrice,
+                buyPrice: actualFillPrice,
                 targetPrice: takeProfitPrice,
                 stopPrice: stopLossPrice,
                 amount: this.tradeAmount,
@@ -501,6 +582,10 @@ class AutoTradingBot {
             
             console.log('='.repeat(60));
             console.log('✅ TRADE EXECUTION COMPLETE!');
+            console.log(`Action: ${opportunity.action}`);
+            console.log(`Entry Price: $${actualFillPrice.toFixed(4)}`);
+            console.log(`Take Profit: $${takeProfitPrice.toFixed(4)}`);
+            console.log(`Stop Loss: $${stopLossPrice.toFixed(4)}`);
             console.log(`Total trades: ${this.activeTrades.length}`);
             console.log('='.repeat(60));
             console.log(`⏰ Next trade available in ${this.tradeCooldown / 1000} seconds\n`);
