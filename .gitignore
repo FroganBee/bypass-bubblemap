@@ -1,42 +1,32 @@
-# IDL files
-**/target/idl/*.json
-!**/target/idl/.gitkeep
-
-# Account files
-**/target/deploy/*.json
-!**/target/deploy/.gitkeep
-
-# Types
-**/target/types/*.ts
-!**/target/types/.gitkeep
-
-# Build
-**/target
-.DS_Store
+# Environment variables
+.env
+.credentials.json
 
 # Dependencies
 node_modules/
+package-lock.json
 
-# Environment
-.env
-.env.local
+# Build output
+dist/
+*.js
+*.js.map
+*.d.ts
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Anchor
-.anchor/
-
-# Test validator
-test-ledger/
+# Database
+*.db
+*.sqlite
 

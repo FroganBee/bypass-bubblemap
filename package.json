@@ -1,30 +1,43 @@
 {
-  "name": "bubblemap-bypass",
-  "version": "0.1.0",
-  "description": "Bubblemap Bypass Solana Program",
-  "main": "lib/index.js",
+  "name": "polymarket-ts-bot",
+  "version": "1.0.0",
+  "description": "Polymarket Trading Bot in TypeScript",
+  "main": "dist/main.js",
   "scripts": {
-    "lint:fix": "prettier */*.js \"*/**/*.{js,ts,json}\" -w",
-    "lint": "eslint --ext .js,.ts .",
-    "test": "anchor test --skip-local-validator",
-    "test:local": "anchor test",
-    "anchor:build": "anchor build",
-    "anchor:deploy": "anchor deploy",
-    "anchor:clean": "anchor clean"
+    "build": "tsc",
+    "start": "npm run auto-trade",
+    "dev": "npm run auto-trade",
+    "auto-trade": "ts-node src/auto_trading_bot.ts",
+    "check-balance": "ts-node src/check_balance.ts",
+    "gen-creds": "ts-node src/generate_credentials.ts",
+    "credentials": "ts-node src/_gen_credential.ts",
+    "allowance": "ts-node src/allowance.ts",
+    "bid-ask": "ts-node src/bid_asker.ts",
+    "market": "ts-node src/market_finder.ts",
+    "order": "ts-node src/market_order.ts"
+  },
+  "keywords": [
+    "polymarket",
+    "trading",
+    "bot",
+    "typescript"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1"
-  },
-  "devDependencies": {
-    "@types/bn.js": "^5.1.0",
-    "@types/chai": "^4.3.0",
-    "@types/mocha": "^9.0.0",
-    "chai": "^4.3.0",
-    "eslint": "^8.0.0",
-    "mocha": "^9.0.0",
-    "prettier": "^2.7.1",
-    "ts-mocha": "^10.0.0",
-    "typescript": "^4.3.5"
+    "@ethersproject/providers": "^5.8.0",
+    "@ethersproject/wallet": "^5.8.0",
+    "@polymarket/clob-client": "^4.22.8",
+    "@types/ws": "^8.18.1",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "ethers": "^5.7.2",
+    "ws": "^8.18.3"
   }
 }
-
