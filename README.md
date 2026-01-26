@@ -1,6 +1,6 @@
 # Polymarket Trading Bot
 
-A TypeScript-based trading bot for Polymarket with credential management, order execution, market analysis, and automated trading capabilities.
+A TypeScript trading bot for Polymarket that enables automated market analysis, secure authentication, and programmatic order execution for prediction market trading.
 
 ## Questions? Problems?
 
